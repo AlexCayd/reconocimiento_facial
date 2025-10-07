@@ -20,11 +20,13 @@ def cargar_y_procesar_imagen(nombre_archivo, tamaño_objetivo=None):
         if tamaño_objetivo:
             imagen = imagen.resize(tamaño_objetivo)
         
+        # Resultado: una matriz de 256 filas, 256 columnas, cada celda de la matriz  tiene un numero de entre 0 a 255.
         # Convertir imagen a array de numpy
         img_array = np.array(imagen)  
-        vector_caracteristicas = img_array.flatten()  # Convierte de matriz a vector
-        
-        # Normalizar (convertir 0-255 a 0-1)
+        vector_caracteristicas = img_array.flatten()  
+
+        # Resultado:  .flatten es como tomar cada fila de la matriz y ponerla una detrás de la otra para formar una única y larguísima fila. La imagen ahora es un vector 1D de 65,536 números (256 * 256).
+        # Normalizar (convertir 0-255 a 0.0-1.0)
         vector_caracteristicas = vector_caracteristicas.astype(float) / 255.0
         
         return vector_caracteristicas, imagen.size
@@ -33,38 +35,20 @@ def cargar_y_procesar_imagen(nombre_archivo, tamaño_objetivo=None):
         print(f"ERROR al procesar {nombre_archivo}: {e}")
         return None, None
 
-def determinar_tamaño_comun():
-    print("Revisando tamaños de las imágenes existentes...")
-    
-    tamaños_encontrados = []
-    
-    for i in range(1, 21):
-        nombre = f"{i}.jpg"
-        try:
-            img = Image.open(nombre)
-            tamaños_encontrados.append(img.size)
-        except:
-            print(f"  {nombre}: No encontrada")
-            continue
-    
-    if not tamaños_encontrados:
-        print("No se encontraron imágenes")
-        return None
-    
-    tamaño_estandar = (256, 256)  
-    
-    return tamaño_estandar
-
 def cargar_imagenes():
     """
     Carga las 20 imágenes de ENTRENAMIENTO (1.jpg a 20.jpg)
     Devuelve una matriz donde cada fila es una imagen convertida a números
     """
+
     print("\n" + "="*50)
     print("CARGANDO IMÁGENES DE ENTRENAMIENTO")
     print("="*50)
     
-    tamaño_objetivo = determinar_tamaño_comun()
+    
+    # Refactor: Usar un tamaño fijo para simplificar en lugar de llamar a la función
+    tamaño_objetivo = (256, 256)  # Fijo, no se llama a determinar_tamaño_comun
+
     if tamaño_objetivo is None:
         return None
     
@@ -99,9 +83,8 @@ def cargar_imagen_prueba():
     """
     Carga la imagen 21.jpg (la que queremos clasificar)
     """
-    
-    # Usar el mismo tamaño que las imágenes de entrenamiento
-    tamaño_objetivo = determinar_tamaño_comun()
+    # Refactor: Usar un tamaño fijo para simplificar en lugar de llamar a la función
+    tamaño_objetivo = (256, 256)  # Fijo, debe coincidir con las de entrenamiento
     
     vector, tamaño_original = cargar_y_procesar_imagen("21.jpg", tamaño_objetivo)
     
@@ -111,31 +94,26 @@ def cargar_imagen_prueba():
     else:
         print("ERROR: No se pudo cargar 21.jpg")
         return None
-
-def mostrar_estadisticas_basicas(A):
-    """
-    Muestra información básica sobre las imágenes cargadas
-    """
     
-    print(f"Total de imágenes de entrenamiento: {A.shape[0]}")
-    
-    # Analizar diferencias entre las dos personas
-    grupo_persona1 = A[:10]   # Primeras 10 imágenes (filas 0-9)
-    grupo_persona2 = A[10:]   # Últimas 10 imágenes (filas 10-19)
-
 def aplicar_pca(A):
     """
-    Aplica PCA (Análisis de Componentes Principales) a las imágenes
+    Aplica PCA (Análisis de2 Componentes Principales) a las imágenes
     """
     print(f"\n" + "="*50)
     print("APLICANDO PCA")
     print("="*50)
     
+
     # PASO 1: Calcular vector de medias (μ) - igual que tu código original
     mu = np.mean(A, axis=0)  # Promedio de cada píxel en todas las imágenes
     
     # PASO 2: Centrar los datos (Xc = A - μ) - igual que tu código original
     Xc = A - mu  # Cada imagen menos la imagen promedio
+
+    # Imprimir Xc
+    print(f"\nDatos centrados (Xc = A - μ):")
+    print(f"   Dimensiones de Xc: {Xc.shape}")
+    print(f"   Primeros 3 valores de la primera imagen centrada: {Xc[0, :3]}")  
     
     # SVD (Singular Value Decomposition): Xc = U * S * V^T
     U, s, Vt = np.linalg.svd(Xc.T, full_matrices=False)
@@ -145,7 +123,7 @@ def aplicar_pca(A):
     lambdas = (s**2) / (n-1)  # Estos son los eigenvalores (λ)
     V = U  # Estos son los eigenvectores
     
-    # PASO 4: Mostrar resultados (igual que tu código original)
+    # PASO 4: Mostrar resultados 
     print(f"\nValores propios (λ) más importantes:")
     num_mostrar = min(10, len(lambdas))
     for i in range(num_mostrar):
@@ -153,122 +131,162 @@ def aplicar_pca(A):
     
     # PASO 5: Varianza explicada
     total_varianza = np.sum(lambdas)
-    varianza_acumulada = 0
-    for i in range(min(5, len(lambdas))):
-        porcentaje = (lambdas[i]/total_varianza) * 100
-        varianza_acumulada += porcentaje
-        print(f"   Componente {i+1}: {porcentaje:.2f}%")
-    
-    print(f"Primeros 5 componentes explican: {varianza_acumulada:.2f}% de la varianza")
-    
-    return mu, Xc, V[:, 0]  # media, datos centrados, primer eigenvector
+    varianza_acumulada = 0.0
+    k = 0
+    umbral = 0.95  # Objetivo: Explicar el 95% de la varianza
 
-def proyectar_al_pca(Xc, v1):
-    """
-    Proyecta todas las imágenes al primer componente principal
+    print(f"\nBuscando el número de componentes 'k' o el rango 'r' para alcanzar el {umbral:.0%} de varianza...")
     
-    z = v1^T * (imagen - μ)
+    for i, lam in enumerate(lambdas):
+    # Suma la varianza del componente actual
+        varianza_acumulada += lam / total_varianza
+        
+        # Comprueba si hemos alcanzado el umbral
+        if varianza_acumulada >= umbral:
+            k = i + 1  # Guardamos el número de componentes (índice + 1)
+            print(f"   Se necesitan {k} componentes para explicar el {varianza_acumulada:.2%} de la varianza.")
+            break # Detenemos el bucle una vez que encontramos k
+
+    # Si por alguna razón no se alcanza el umbral, k será 0. Podemos manejarlo
+    if k == 0:
+        k = len(lambdas) # Usar todos los componentes si no se alcanza
+        print("Advertencia: No se alcanzó el umbral, se usarán todos los componentes.")
+
+    
+    return mu, Xc, V[:, :k] # Retorna los primeros 'k' componentes
+
+def proyectar_al_pca(Xc, Vk):
+    """
+    Proyecta todas las imágenes centradas (Xc) al subespacio PCA de k dimensiones.
+
+    Esta función toma la matriz de imágenes (donde cada imagen es un vector de píxeles)
+    y la transforma en una matriz de proyecciones. Cada imagen, que originalmente
+    requería un gran número de píxeles para ser descrita, ahora será representada
+    por un vector mucho más pequeño de 'k' coordenadas.
+
+    La proyección se realiza de forma vectorizada (sin bucles) mediante una
+    única y eficiente multiplicación de matrices.
+
+    La operación matemática es: Z = Xc · Vk
+
+    Args:
+        Xc (np.array): La matriz de datos centrados (imágenes - cara promedio).
+                    Su forma es (num_imagenes, num_pixeles).
+        Vk (np.array): La matriz que contiene los k eigenvectores (eigenfaces)
+                    más importantes. Su forma es (num_pixeles, k).
+
+    Returns:
+        np.array: La matriz de proyecciones Z, con forma (num_imagenes, k).
+                Cada fila es el nuevo vector de características de una imagen en el
+                "espacio de caras".
     """
     print(f"\n" + "="*50)
-    print("PROYECTANDO AL PRIMER COMPONENTE PRINCIPAL")
+    print(f"PROYECTANDO AL SUBESPACIO DE {Vk.shape[1]} COMPONENTES")
     print("="*50)
-    
-    print(f"Usando el primer componente principal (v1)")
-    print(f"Dimensión del vector v1: {len(v1):,}")
-    
-    z_values = []  # Lista para guardar todas las proyecciones z
-    
-    print(f"\nCalculando z = v1^T * (imagen_i - μ) para cada imagen:")
-    
-    # Para cada imagen de entrenamiento, calcular su proyección z
-    for i in range(len(Xc)):
-        z = np.dot(v1, Xc[i])  # Producto punto entre v1 y la imagen centrada
-        z_values.append(z)
-        
-        # Determinar a qué persona pertenece
-        persona = "Persona 1" if i < 10 else "Persona 2"
-        print(f"   Imagen {i+1:2d}.jpg: z = {z:8.4f} ({persona})")
-    
-    print(f"\n{len(z_values)} proyecciones calculadas")
-    
-    return z_values
 
-def clasificar_con_vecino_cercano(mu, v1, z_values):
-    """
-    Clasifica la imagen 21.jpg usando el algoritmo 1-NN (vecino más cercano)
-    """
-    print(f"\n" + "="*60)
-    print("CLASIFICACIÓN CON ALGORITMO 1-NN (VECINO MÁS CERCANO)")
-    print("="*60)
+    Z = np.dot(Xc, Vk)
+
+    print(f"Se han proyectado {Z.shape[0]} imágenes a un espacio de {Z.shape[1]} dimensiones.")
     
-    # PASO 1: Cargar y procesar la imagen de prueba
-    print("Procesando imagen de prueba...")
-    x_test = cargar_imagen_prueba()
-    if x_test is None:
-        print("No se puede continuar sin la imagen 21.jpg")
-        return
-    
-    # PASO 2: Centrar la imagen de prueba (igual que tu código original)
-    print("\nCentrando imagen de prueba...")
-    x_test_centered = x_test - mu  
-    print(f"Imagen 21.jpg centrada")
-    
-    # PASO 3: Proyectar al PCA 
-    print("\nHaciendo las proyecciones...")
-    z_test = np.dot(v1, x_test_centered)  # z = v1^T * (imagen_prueba - μ)
-    print(f"Proyección z de imagen 21.jpg: {z_test:.4f}")
-    
-    # PASO 4: Calcular distancias 
-    print(f"\nCalculando distancias a todas las imágenes de entrenamiento:")
-    print(f"(Usando distancia |z_prueba - z_entrenamiento|)")
-    
-    distancias = []
-    
-    for i, z_entrenamiento in enumerate(z_values):
-        distancia = abs(z_test - z_entrenamiento)
-        distancias.append(distancia)
-        
+    # Opcional: Imprimir las primeras proyecciones para verificar
+    for i in range(min(5, len(Z))):
         persona = "Persona 1" if i < 10 else "Persona 2"
-        print(f"   Distancia a {i+1:2d}.jpg ({persona}): {distancia:.4f}")
+        # np.array2string formatea el vector para que se vea bien
+        proyeccion_str = np.array2string(Z[i], precision=4, floatmode='fixed')
+        print(f"   Proyección Imagen {i+1:2d} ({persona}): {proyeccion_str}")
+        
+    return Z
+
+def reconstruir_imagen(z, Vk, mu):
+    """
+    Reconstruye una imagen a partir de su proyección en el espacio PCA.
+    """
+    Xc_reconstruido = np.dot(Vk, z)
+    X_reconstruido = Xc_reconstruido + mu
+
+    # Imprimir el X_reconstruido
+    print(f"\nReconstrucción de imagen desde proyección z:")
+    print(f"   Dimensiones de la imagen reconstruida: {X_reconstruido.shape}")
+    print(f"   Primeros 3 valores de la imagen reconstruida: {X_reconstruido[:3]}") 
+
+    return X_reconstruido
+
+def calcular_error_de_reconstruccion(x_test, mu, Vk):
+    print("\n" + "="*50)
+    print("CALCULANDO ERROR DE RECONSTRUCCIÓN ")
+    print("="*50)
+
+    # 1. Centrar la imagen de prueba
+    print("   Paso 1: Centrando la imagen de prueba...")
+    x_test_centrado = x_test - mu
+
+     # 2. Proyectar la imagen al espacio de k dimensiones para obtener 'z_test'
+    #    Para proyectar un solo vector, se multiplica por la transpuesta de Vk.
+    print("   Paso 2: Proyectando la imagen al espacio PCA...")
+    z_test = np.dot(Vk.T, x_test_centrado)
+    print(f"      Proyección obtenida (vector de {len(z_test)} dimensiones).")
+
+    # 3. Reconstruir la imagen a partir de su proyección
+    print("   Paso 3: Reconstruyendo la imagen desde la proyección...")
+    x_reconstruido = reconstruir_imagen(z_test, Vk, mu)
+    print("      Imagen reconstruida.")
+     # 4. Calcular el error (norma de la diferencia) entre la original y la reconstruida
+    print("   Paso 4: Calculando el error...")
+    error = np.linalg.norm(x_test - x_reconstruido)
+    print(f"      Error de reconstrucción: {error:.4f}")
     
-    # PASO 5: Encontrar vecino más cercano (igual que tu código original)
-    print(f"\nEncontrando vecino más cercano...")
-    indice_minimo = np.argmin(distancias)  # Índice de la distancia mínima
-    distancia_minima = distancias[indice_minimo]
-    
-    # Determinar clasificación
-    clasificacion = "Persona 1" if indice_minimo < 10 else "Persona 2"
-    imagen_mas_cercana = f"{indice_minimo+1}.jpg"
-    
-    # MOSTRAR RESULTADO FINAL
-    print(f"\n" + "="*50)
-    print("RESULTADO DE LA CLASIFICACIÓN")
-    print("="*51)
-    print(f"Vecino más cercano: {imagen_mas_cercana}")
-    print(f"Distancia mínima: {distancia_minima:.4f}")
-    print(f"CLASIFICACIÓN: La imagen 21.jpg es de {clasificacion}")
-    
-    # Análisis adicional para dar más confianza
-    print(f"\nAnálisis adicional:")
-    distancia_promedio_p1 = np.mean([distancias[i] for i in range(10)])
-    distancia_promedio_p2 = np.mean([distancias[i] for i in range(10, 20)])
-    
-    print(f"   Distancia promedio a Persona 1: {distancia_promedio_p1:.4f}")
-    print(f"   Distancia promedio a Persona 2: {distancia_promedio_p2:.4f}")
-    
-    diferencia = abs(distancia_promedio_p1 - distancia_promedio_p2)
-    mejor_grupo = "Persona 1" if distancia_promedio_p1 < distancia_promedio_p2 else "Persona 2"
-    
-    # Nivel de confianza
-    if diferencia > 0.02:
-        confianza = "ALTA"
-    elif diferencia > 0.01:
-        confianza = "MEDIA"
+    return error
+
+def evaluar_sistema(A, mu, Vk):
+    """
+    Realiza la evaluación completa del sistema:
+    1. Calcula el umbral T a partir de los errores de las imágenes de entrenamiento.
+    2. Evalúa una imagen de prueba contra ese umbral.
+    """
+    print("\n" + "="*60)
+    print("FASE DE EVALUACIÓN DEL SISTEMA Y UMBRAL DE DECISIÓN (T)")
+    print("="*60)
+
+    # --- PASO 1: Calcular el umbral T con los datos de entrenamiento ---
+    print("\nCalculando errores de reconstrucción para las imágenes de entrenamiento...")
+    errores_entrenamiento = []
+    # En el arreglo guardamos todos los errores de las imágenes de entrenamiento, para luego definir el umbral T como el error máximo
+    for i, x_entrenamiento in enumerate(A):
+        # Usamos la misma función de cálculo de error para cada imagen de entrenamiento
+        error = calcular_error_de_reconstruccion(x_entrenamiento, mu, Vk)
+        errores_entrenamiento.append(error)
+        print(f"   Error para la imagen de entrenamiento {i+1}.jpg: {error:.4f}")
+
+    # Definimos el umbral T como el error máximo encontrado en el entrenamiento 
+    umbral_T = max(errores_entrenamiento)
+    print(f"\nEl error máximo en el set de entrenamiento fue: {umbral_T:.4f}")
+    print(f"UMBRAL DE DECISIÓN (T) ESTABLECIDO EN: {umbral_T:.4f}")
+
+    # --- PASO 2: Evaluar la imagen de prueba ---
+    print("\nCargando imagen de prueba para evaluación final...")
+    x_prueba = cargar_imagen_prueba() # Carga "21.jpg"
+
+    if x_prueba is None:
+        print("No se puede continuar sin la imagen de prueba.")
+        return
+
+    error_prueba = calcular_error_de_reconstruccion(x_prueba, mu, Vk)
+
+    # --- PASO 3: Dar el veredicto final ---
+    print("\n" + "="*50)
+    print("VEREDICTO FINAL")
+    print("="*50)
+    print(f"   Error de reconstrucción de la imagen de prueba: {error_prueba:.4f}")
+    print(f"   Umbral de decisión (T): {umbral_T:.4f}")
+
+    if error_prueba <= umbral_T:
+        print("\n   >> RESULTADO: Rostro RECONOCIDO.")
+        print("   Explicación: El error está por debajo del umbral, lo que significa que la cara se ajusta bien al modelo aprendido.")
     else:
-        confianza = "BAJA"
-    
-    print(f"Confirmación: Más similar a {mejor_grupo}")
-    print(f"Nivel de confianza: {confianza}")
+        print("\n   >> RESULTADO: Rostro DESCONOCIDO.")
+        print("   Explicación: El error supera el umbral, lo que indica que la cara es significativamente diferente a las caras del entrenamiento.")
+
+
 
 def main():
     """
@@ -281,21 +299,20 @@ def main():
         print("\nERROR CRÍTICO: No se pudieron cargar las imágenes de entrenamiento")
         return
     
-    # PASO 2: Mostrar estadísticas
-    mostrar_estadisticas_basicas(A)
+    print(f"Total de imágenes de entrenamiento: {A.shape[0]}")
     
-    # PASO 3: Aplicar PCA
-    mu, Xc, v1 = aplicar_pca(A)
+    # PASO 2: Aplicar PCA
+    mu, Xc, Vk = aplicar_pca(A)
+
+    # PASO 3: Proyectar datos al primer componente
+    Z = proyectar_al_pca(Xc, Vk) # Z contendrá la matriz de 20x13   proyecciones
     
-    # PASO 4: Proyectar datos al primer componente
-    z_values = proyectar_al_pca(Xc, v1)
-    
-    # PASO 5: Clasificar imagen de prueba
-    clasificar_con_vecino_cercano(mu, v1, z_values)
-    
+     # --- FASE DE EVALUACIÓN ---
+    evaluar_sistema(A, mu, Vk)
+
     print(f"\n" + "="*60)
-    print("PROCESO COMPLETADO EXITOSAMENTE")
-    print("="*61)
+    print("PROCESO COMPLETADO")
+    print("="*60)
 
 # EJECUTAR EL PROGRAMA
 if __name__ == "__main__":
