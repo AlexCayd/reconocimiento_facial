@@ -50,7 +50,10 @@
             
             </form>
 
-            <a href="#" class="card__button">Ver Demo</a>
+            <form action="{{ url_for('restablecer')}}" method="POST">
+                <input type="submit" value="Restablecer los Datos" class="card__button">
+            </form>
+
         </div>
     </main>
 
