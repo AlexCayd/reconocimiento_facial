@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconocimiento Facial - Proyecto Flask</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <script src="../static/images_preview.js" defer></script>
+</head>
+<body class="page">
+    <header class="header">
+        <div class="header__content">
+            <h1 class="header__title">Reconocimiento Facial</h1>
+            <p class="header__authors">Hecho por Alexander Oliva e Isaiah Rivas.</p>
+        </div>
+        <nav class="navigation">
+            <a href="#" class="navigation__link navigation__link--active">Sobre el Proyecto</a>
+            <a href="#" class="navigation__link">Aplicación</a>
+            <a href="#" class="navigation__link">Créditos</a>
+        </nav>
+    </header>
+    
+    <main class="main-content">
+        
+        <div class="card">
+            
+            <h2 class="card__title">Bienvenidos al proyecto</h2>
+            {% if msg %}
+                <p class="card__text">{{ msg }}</p>
+            {% endif %}
+            <p class="card__text">Este es un ejemplo de contenido dentro de la tarjeta principal. Aquí se mostrarán los detalles del proyecto o una interfaz inicial.</p>
+
+            <form method="POST" enctype="multipart/form-data" action="{{ url_for('procesar') }}">
+
+                <p>Selecciona varias fotos para enviar (minimamente 5):</p>
+
+                <div class="file-upload">
+                    <input id="fileInput" class="file-upload__input" type="file" 
+                        accept="image/jpeg, image/png" multiple name="files">
+                    
+                    <label for="fileInput" class="card__button">
+                        Elegir Archivos...
+                    </label>
+                    <input type="submit" value="Submit">
+                </div>
+
+                            
+            <div id="previewContainer">
+                </div>
+            
+            </form>
+
+            <a href="#" class="card__button">Ver Demo</a>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p class="footer__text">© 2025 Proyecto de Reconocimiento Facial</p>
+    </footer>
+</body>
+</html>
