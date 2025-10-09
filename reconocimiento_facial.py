@@ -1,269 +1,184 @@
+# Archivo: reconocimiento_facial.py
+
 import numpy as np
 from PIL import Image
 import os
-import sys
 
-print("=== RECONOCIMIENTO FACIAL CON PCA ===\n")
+# NOTA: Todas las funciones ahora aceptan un argumento 'log' para registrar mensajes
+# en lugar de usar print().
 
-def cargar_y_procesar_imagen(nombre_archivo, tamaño_objetivo=None):
-    """
-    Carga la imagenes y devuelve los vectores correspondientes
-    """
-    try:
-        imagen = Image.open(nombre_archivo)
-        
-        # Convertir a escala de grises (blanco y negro)
-        if imagen.mode != 'L':
-            imagen = imagen.convert('L')
-        
-        # Redimensionar para que todas las imágenes tengan el mismo tamaño
-        if tamaño_objetivo:
-            imagen = imagen.resize(tamaño_objetivo)
-        
-        img_array = np.array(imagen)  
-        vector_caracteristicas = img_array.flatten()  
-
-        vector_caracteristicas = vector_caracteristicas.astype(float) / 255.0
-        
-        return vector_caracteristicas, imagen.size
-        
-    except Exception as e:
-        print(f"ERROR al procesar {nombre_archivo}: {e}")
-        return None, None
-
-def cargar_imagenes():
-    """
-    Carga las n imágenes de ENTRENAMIENTO 
-    Devuelve una matriz donde cada fila es una imagen convertida a números
-    """
-    print("\n" + "="*50)
-    print("CARGANDO IMÁGENES DE ENTRENAMIENTO")
-    print("="*50)
-
-    tamaño_objetivo = (256, 256)  # Fijo, no se llama a determinar_tamaño_comun
-
-    if tamaño_objetivo is None:
-        return None
+def cargar_imagenes(log):
+    log.append("\n" + "="*50)
+    log.append("CARGANDO IMÁGENES DE ENTRENAMIENTO")
+    log.append("="*50)
     
+    tamaño_objetivo = (256, 256)
     todas_las_caracteristicas = []
-    
     dataset_dir = "dataset"
-    archivos = sorted([f for f in os.listdir(dataset_dir) if f.endswith('.jpg')])
-
-    for i, nombre_archivo in enumerate(archivos, start=1):
-        ruta_archivo = os.path.join(dataset_dir, nombre_archivo)
-        # Convertir imagen a vector de números
-        vector, tamaño_original = cargar_y_procesar_imagen(ruta_archivo, tamaño_objetivo)
-
-        if vector is not None:
-            todas_las_caracteristicas.append(vector)        
-            
-        else:
-            print(f"ERROR: No se pudo cargar {nombre_archivo}")
-            return None
     
-    # Verificar que tenemos exactamente 20 imágenes
-    if len(todas_las_caracteristicas) != len(archivos):
-        print(f"ERROR: Se esperaban {len(archivos)} imágenes, pero se cargaron {len(todas_las_caracteristicas)}")
-        return None
+    if not os.path.exists(dataset_dir) or not os.listdir(dataset_dir):
+        log.append(f"ERROR: La carpeta '{dataset_dir}' no existe o está vacía.")
+        return None, log
 
-    return np.array(todas_las_caracteristicas)
+    archivos = sorted([f for f in os.listdir(dataset_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+    log.append(f"Se encontraron {len(archivos)} imágenes en el dataset.")
 
-def cargar_imagen_prueba():
-    """
-    Carga la imagen de la carpeta de imagen_prueba (la que queremos clasificar)
-    """
-    tamaño_objetivo = (256, 256)  # Fijo, debe coincidir con las de entrenamiento
+    for nombre_archivo in archivos:
+        ruta_archivo = os.path.join(dataset_dir, nombre_archivo)
+        vector, _ = cargar_y_procesar_imagen(ruta_archivo, tamaño_objetivo)
+        if vector is not None:
+            todas_las_caracteristicas.append(vector)
+        else:
+            log.append(f"ERROR: No se pudo cargar {nombre_archivo}")
+            return None, log
+            
+    return np.array(todas_las_caracteristicas), log
 
-    vector, tamaño_original = cargar_y_procesar_imagen("imagen_prueba/1.jpg", tamaño_objetivo)
+def cargar_imagen_prueba(log):
+    tamaño_objetivo = (256, 256)
+    test_dir = 'imagen_prueba'
+    
+    if not os.path.exists(test_dir) or not os.listdir(test_dir):
+        log.append(f"ERROR: La carpeta '{test_dir}' no existe o está vacía.")
+        return None, log
+        
+    # Asumimos que solo hay una imagen en la carpeta de prueba
+    nombre_archivo = os.listdir(test_dir)[0]
+    ruta_archivo = os.path.join(test_dir, nombre_archivo)
+    
+    vector, _ = cargar_y_procesar_imagen(ruta_archivo, tamaño_objetivo)
     
     if vector is not None:
-        print("Imagen de prueba cargada correctamente")
-        return vector
+        log.append(f"Imagen de prueba '{nombre_archivo}' cargada correctamente.")
+        return vector, log
     else:
-        print("ERROR: No se pudo cargar la imagen de prueba")
-        return None
-    
-def aplicar_pca(A):
-    """
-    Aplica PCA (Análisis de2 Componentes Principales) a las imágenes
-    """
-    print(f"\n" + "="*50)
-    print("APLICANDO PCA")
-    print("="*50)
+        log.append(f"ERROR: No se pudo cargar la imagen de prueba '{nombre_archivo}'.")
+        return None, log
 
-    mu = np.mean(A, axis=0)  # Promedio de cada píxel en todas las imágenes
-    
-    Xc = A - mu  # Cada imagen menos la imagen promedio
+def aplicar_pca(A, log):
+    log.append("\n" + "="*50)
+    log.append("APLICANDO PCA")
+    log.append("="*50)
 
-    print(f"\nDatos centrados (Xc = A - μ):")
-    print(f"   Dimensiones de Xc: {Xc.shape}")
-    print(f"   Primeros 3 valores de la primera imagen centrada: {Xc[0, :3]}")  
+    mu = np.mean(A, axis=0)
+    Xc = A - mu
+    log.append(f"Datos centrados (Xc = A - μ). Dimensiones: {Xc.shape}")
 
     U, s, Vt = np.linalg.svd(Xc.T, full_matrices=False)
-    
     n = A.shape[0]
-    lambdas = (s**2) / (n-1)  # Estos son los eigenvalores (λ)
-    V = U  # Estos son los eigenvectores
-    
-    print(f"\nValores propios (λ) más importantes:")
-    num_mostrar = min(10, len(lambdas))
-    for i in range(num_mostrar):
-        print(f"   λ{i+1}: {lambdas[i]:.6f}")
+    lambdas = (s**2) / (n-1)
+    V = U
+
+    log.append("\nValores propios (λ) más importantes:")
+    for i in range(min(10, len(lambdas))):
+        log.append(f"   λ{i+1}: {lambdas[i]:.6f}")
     
     total_varianza = np.sum(lambdas)
     varianza_acumulada = 0.0
     k = 0
-    umbral = 0.95  # Objetivo: Explicar el 95% de la varianza
-
-    print(f"\nBuscando el número de componentes 'k' o el rango 'r' para alcanzar el {umbral:.0%} de varianza...")
+    umbral = 0.95
+    log.append(f"\nBuscando 'k' para alcanzar el {umbral:.0%} de varianza...")
     
     for i, lam in enumerate(lambdas):
         varianza_acumulada += lam / total_varianza
-        
         if varianza_acumulada >= umbral:
-            k = i + 1  # Guardamos el número de componentes (índice + 1)
-            print(f"   Se necesitan {k} componentes para explicar el {varianza_acumulada:.2%} de la varianza.")
-            break # Detenemos el bucle una vez que encontramos k
+            k = i + 1
+            log.append(f"   Se necesitan {k} componentes para explicar el {varianza_acumulada:.2%} de la varianza.")
+            break
+            
+    return mu, Xc, V[:, :k], k, varianza_acumulada, log
 
-    if k == 0:
-        k = len(lambdas) # Usar todos los componentes si no se alcanza
-        print("Advertencia: No se alcanzó el umbral, se usarán todos los componentes.")
-
-    return mu, Xc, V[:, :k] # Retorna los primeros 'k' componentes
-
-def proyectar_al_pca(Xc, Vk):
-    """
-    Proyecta todas las imágenes centradas (Xc) al subespacio PCA de k dimensiones.
-    """
-    print(f"\n" + "="*50)
-    print(f"PROYECTANDO AL SUBESPACIO DE {Vk.shape[1]} COMPONENTES")
-    print("="*50)
-
-    Z = np.dot(Xc, Vk)
-
-    print(f"Se han proyectado {Z.shape[0]} imágenes a un espacio de {Z.shape[1]} dimensiones.")
-    
-    
-    return Z
+# ... (cargar_y_procesar_imagen y reconstruir_imagen no necesitan cambios si no imprimen nada)
+def cargar_y_procesar_imagen(nombre_archivo, tamaño_objetivo=None):
+    try:
+        imagen = Image.open(nombre_archivo).convert('L')
+        if tamaño_objetivo:
+            imagen = imagen.resize(tamaño_objetivo)
+        img_array = np.array(imagen)
+        return img_array.flatten().astype(float) / 255.0, imagen.size
+    except Exception as e:
+        print(f"ERROR al procesar {nombre_archivo}: {e}") # Este print puede quedar para la consola del server
+        return None, None
 
 def reconstruir_imagen(z, Vk, mu):
-    """
-    Reconstruye una imagen a partir de su proyección en el espacio PCA.
-    """
     Xc_reconstruido = np.dot(Vk, z)
-    X_reconstruido = Xc_reconstruido + mu
+    return Xc_reconstruido + mu
 
-    # Imprimir el X_reconstruido
-    print(f"\nReconstrucción de imagen desde proyección z:")
-    print(f"   Dimensiones de la imagen reconstruida: {X_reconstruido.shape}")
-    print(f"   Primeros 3 valores de la imagen reconstruida: {X_reconstruido[:3]}") 
+def calcular_error_de_reconstruccion(x, mu, Vk, log, img_label="imagen"):
+    log.append("\n" + "="*50)
+    log.append(f"CALCULANDO ERROR DE RECONSTRUCCIÓN PARA: {img_label}")
+    log.append("="*50)
 
-    return X_reconstruido
-
-def calcular_error_de_reconstruccion(x_test, mu, Vk):
-    print("\n" + "="*50)
-    print("CALCULANDO ERROR DE RECONSTRUCCIÓN ")
-    print("="*50)
-
-    # 1. Centrar la imagen de prueba
-    print("   Paso 1: Centrando la imagen de prueba...")
-    x_test_centrado = x_test - mu
-
-     # 2. Proyectar la imagen al espacio de k dimensiones para obtener 'z_test'
-    #    Para proyectar un solo vector, se multiplica por la transpuesta de Vk.
-    print("   Paso 2: Proyectando la imagen al espacio PCA...")
-    z_test = np.dot(Vk.T, x_test_centrado)
-    print(f"      Proyección obtenida (vector de {len(z_test)} dimensiones).")
-
-    # 3. Reconstruir la imagen a partir de su proyección
-    print("   Paso 3: Reconstruyendo la imagen desde la proyección...")
-    x_reconstruido = reconstruir_imagen(z_test, Vk, mu)
-    print("      Imagen reconstruida.")
-     # 4. Calcular el error (norma de la diferencia) entre la original y la reconstruida
-    print("   Paso 4: Calculando el error...")
-    error = np.linalg.norm(x_test - x_reconstruido)
-    print(f"      Error de reconstrucción: {error:.4f}")
+    log.append("   Paso 1: Centrando la imagen...")
+    x_centrado = x - mu
     
-    return error
+    log.append("   Paso 2: Proyectando al espacio PCA...")
+    z = np.dot(Vk.T, x_centrado)
+    log.append(f"      Proyección obtenida (vector de {len(z)} dims).")
 
-def evaluar_sistema(A, mu, Vk):
-    """
-    Realiza la evaluación completa del sistema:
-    1. Calcula el umbral T a partir de los errores de las imágenes de entrenamiento.
-    2. Evalúa una imagen de prueba contra ese umbral.
-    """
-    print("\n" + "="*60)
-    print("FASE DE EVALUACIÓN DEL SISTEMA Y UMBRAL DE DECISIÓN (T)")
-    print("="*60)
+    log.append("   Paso 3: Reconstruyendo la imagen...")
+    x_reconstruido = reconstruir_imagen(z, Vk, mu)
+    log.append("      Imagen reconstruida.")
+    
+    log.append("   Paso 4: Calculando el error...")
+    error = np.linalg.norm(x - x_reconstruido)
+    log.append(f"      Error de reconstrucción: {error:.4f}")
+    
+    return error, x_reconstruido, log
 
-    # --- PASO 1: Calcular el umbral T con los datos de entrenamiento ---
-    print("\nCalculando errores de reconstrucción para las imágenes de entrenamiento...")
+# Esta es la nueva función principal que llamaremos desde Flask
+def ejecutar_analisis_completo():
+    log = [] # Inicializamos la lista para guardar los mensajes
+    results = {} # Inicializamos el diccionario para guardar los resultados
+
+    # --- FASE DE ENTRENAMIENTO ---
+    A, log = cargar_imagenes(log)
+    if A is None:
+        return None, log
+
+    mu, Xc, Vk, k, var_expl, log = aplicar_pca(A, log)
+    results['k'] = k
+    results['variance_explained'] = var_expl
+
+    # --- FASE DE EVALUACIÓN ---
+    log.append("\n" + "="*60)
+    log.append("FASE DE EVALUACIÓN DEL SISTEMA Y UMBRAL DE DECISIÓN (T)")
+    log.append("="*60)
+
     errores_entrenamiento = []
-    
     for i, x_entrenamiento in enumerate(A):
-
-        error = calcular_error_de_reconstruccion(x_entrenamiento, mu, Vk)
+        error, _, log = calcular_error_de_reconstruccion(x_entrenamiento, mu, Vk, log, img_label=f"Entrenamiento {i+1}.jpg")
         errores_entrenamiento.append(error)
-        print(f"   Error para la imagen de entrenamiento {i+1}.jpg: {error:.4f}")
 
-    # Definimos el umbral T como el error máximo encontrado en el entrenamiento 
     umbral_T = max(errores_entrenamiento)
-    print(f"\nEl error máximo en el set de entrenamiento fue: {umbral_T:.4f}")
-    print(f"UMBRAL DE DECISIÓN (T) ESTABLECIDO EN: {umbral_T:.4f}")
+    results['threshold_t'] = umbral_T
+    log.append(f"\nUMBRAL DE DECISIÓN (T) ESTABLECIDO EN: {umbral_T:.4f}")
 
-    # --- PASO 2: Evaluar la imagen de prueba ---
-    print("\nCargando imagen de prueba para evaluación final...")
-    x_prueba = cargar_imagen_prueba() 
-
+    # --- EVALUAR IMAGEN DE PRUEBA ---
+    x_prueba, log = cargar_imagen_prueba(log)
     if x_prueba is None:
-        print("No se puede continuar sin la imagen de prueba.")
-        return
+        return None, log
 
-    error_prueba = calcular_error_de_reconstruccion(x_prueba, mu, Vk)
+    error_prueba, x_reconstruido, log = calcular_error_de_reconstruccion(x_prueba, mu, Vk, log, img_label="Prueba")
+    results['reconstruction_error'] = error_prueba
 
-    # --- PASO 3: Dar el veredicto final ---
-    print("\n" + "="*50)
-    print("VEREDICTO FINAL")
-    print("="*50)
-    print(f"   Error de reconstrucción de la imagen de prueba: {error_prueba:.4f}")
-    print(f"   Umbral de decisión (T): {umbral_T:.4f}")
+    # --- VEREDICTO FINAL ---
+    log.append("\n" + "="*50)
+    log.append("VEREDICTO FINAL")
+    log.append("="*50)
+    log.append(f"   Error de la imagen de prueba: {error_prueba:.4f}")
+    log.append(f"   Umbral de decisión (T): {umbral_T:.4f}")
 
     if error_prueba <= umbral_T:
-        print("\n   >> RESULTADO: Rostro RECONOCIDO.")
-        print("   Explicación: El error está por debajo del umbral, lo que significa que la cara se ajusta bien al modelo aprendido.")
+        results['is_recognized'] = True
+        log.append("\n   >> RESULTADO: Rostro RECONOCIDO.")
+        log.append("   Explicación: El error está por debajo del umbral.")
     else:
-        print("\n   >> RESULTADO: Rostro DESCONOCIDO.")
-        print("   Explicación: El error supera el umbral, lo que indica que la cara es significativamente diferente a las caras del entrenamiento.")
+        results['is_recognized'] = False
+        log.append("\n   >> RESULTADO: Rostro DESCONOCIDO.")
+        log.append("   Explicación: El error supera el umbral.")
 
-
-
-def main():
-    """
-    Función principal - ejecuta todo el proceso paso a paso
-    """    
-    # PASO 1: Cargar imágenes de entrenamiento 
-    A = cargar_imagenes()
-
-    if A is None:
-        print("\nERROR CRÍTICO: No se pudieron cargar las imágenes de entrenamiento")
-        return
+    # Aquí agregaríamos la lógica para guardar las imágenes y devolver las rutas
+    # pero por ahora, solo devolvemos los datos y el log.
     
-    print(f"Total de imágenes de entrenamiento: {A.shape[0]}")
-    
-    # PASO 2: Aplicar PCA
-    mu, Xc, Vk = aplicar_pca(A)
-
-    # PASO 3: Proyectar datos al primer componente
-    Z = proyectar_al_pca(Xc, Vk) 
-    
-     # --- FASE DE EVALUACIÓN ---
-    evaluar_sistema(A, mu, Vk)
-
-    print(f"\n" + "="*60)
-    print("PROCESO COMPLETADO")
-    print("="*60)
-
-# EJECUTAR EL PROGRAMA
-if __name__ == "__main__":
-    main()
+    return results, log

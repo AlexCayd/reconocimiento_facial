@@ -312,3 +312,77 @@ html {
         grid-template-columns: 1fr;
     }
 }
+
+/* --- ADICIONES PARA LA PLANTILLA FINAL --- */
+
+/* Clase para controlar la altura de las imágenes de comparación */
+.gallery__image--controlled {
+    width: 100%;
+    max-height: 250px; /* Ajusta esta altura como prefieras */
+    object-fit: cover; /* Evita que la imagen se deforme */
+    border-radius: 0.5em;
+    background-color: var(--background);
+}
+
+/* Estilos para el contenedor de logs tipo terminal */
+.terminal-window {
+    background-color: #16161E; /* Un negro un poco más profundo */
+    border: 1px solid var(--primary_color);
+    border-radius: 0.5em;
+    margin-top: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.terminal-header {
+    background-color: var(--primary_color);
+    padding: 0.8rem;
+    border-top-left-radius: 0.5em;
+    border-top-right-radius: 0.5em;
+    display: flex;
+    align-items: center;
+}
+
+.terminal-header span {
+    margin: 0 auto;
+    font-family: JetBrainsMonoBold;
+    color: var(--foreground);
+    opacity: 0.7;
+}
+
+.terminal-button {
+    height: 12px;
+    width: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+    display: inline-block;
+}
+
+.red { background-color: #F38BA8; }
+.yellow { background-color: #FAB387; }
+.green { background-color: #A6E3A1; }
+
+.console-output {
+    padding: 1.5rem;
+    color: #a6e3a1;
+    text-align: left;
+    white-space: pre-wrap;
+    font-family: JetBrainsMonoRegular, monospace;
+    font-size: 1.4rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Modificador para que la tarjeta de eigenfaces ocupe todo el ancho */
+.pca-core-card--full-width {
+    grid-column: 1 / -1; /* Ocupa todas las columnas del grid */
+}
+
+.preview__image {
+            max-width: 250px;
+            max-height: 250px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+ }

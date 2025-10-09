@@ -1,64 +1,160 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reconocimiento Facial - Proyecto Flask</title>
-    <link rel="stylesheet" href="../static/styles.css">
-    <script src="../static/images_preview.js" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body class="page">
     <header class="header">
         <div class="header__content">
-            <h1 class="header__title">Reconocimiento Facial</h1>
+            <h1 class="header__title">Reconocimiento Facial con PCA</h1>
             <p class="header__authors">Hecho por Alexander Oliva e Isaiah Rivas.</p>
         </div>
-        <nav class="navigation">
-            <a href="#" class="navigation__link navigation__link--active">Sobre el Proyecto</a>
-            <a href="#" class="navigation__link">Aplicación</a>
-            <a href="#" class="navigation__link">Créditos</a>
-        </nav>
     </header>
     
     <main class="main-content">
-        
-        <div class="card">
+        <div class="card-lg">
             
-            <h2 class="card__title">Bienvenidos al proyecto</h2>
+            <h2 class="card__title">Demostración del Sistema</h2>
             {% if msg %}
-                <p class="card__text">{{ msg }}</p>
+                <p class="card__text" style="color: var(--secondary_color);">{{ msg }}</p>
             {% endif %}
-            <p class="card__text">Este es un ejemplo de contenido dentro de la tarjeta principal. Aquí se mostrarán los detalles del proyecto o una interfaz inicial.</p>
 
             <form method="POST" enctype="multipart/form-data" action="{{ url_for('procesar') }}">
-
-                <p>Selecciona varias fotos para enviar (minimamente 5):</p>
-
+                <p class="card__text"><strong>Paso 1:</strong> Sube las imágenes para el dataset de entrenamiento (mínimo 5).</p>
                 <div class="file-upload">
-                    <input id="fileInput" class="file-upload__input" type="file" 
-                        accept="image/jpeg, image/png" multiple name="files">
-                    
-                    <label for="fileInput" class="card__button">
-                        Elegir Archivos...
-                    </label>
-                    <input type="submit" value="Submit">
+                    <input id="datasetInput" class="file-upload__input" type="file" 
+                           accept="image/jpeg, image/png" multiple name="dataset_images" required>
+                    <label for="datasetInput" class="card__button">Elegir Dataset...</label>
                 </div>
+                <div id="previewContainerDataset" class="preview-container"></div>
 
-                            
-            <div id="previewContainer">
+                <hr class="separator">
+
+                <p class="card__text"><strong>Paso 2:</strong> Sube la imagen de prueba que deseas analizar.</p>
+                <div class="file-upload">
+                    <input id="testInput" class="file-upload__input" type="file" 
+                           accept="image/jpeg, image/png" name="test_image" required>
+                    <label for="testInput" class="card__button">Elegir Imagen de Prueba...</label>
                 </div>
-            
+                <div id="previewContainerTest" class="preview-container"></div>
+                
+                <hr class="separator">
+                
+                <button type="submit" class="card__button">Analizar Rostros</button>
             </form>
 
-            <form action="{{ url_for('restablecer')}}" method="POST">
-                <input type="submit" value="Restablecer los Datos" class="card__button">
+            <form action="{{ url_for('restablecer')}}" method="POST" style="margin-top: 1rem;">
+                <button type="submit" class="card__button card__button--secondary">Restablecer Datos</button>
             </form>
 
+            {% if results %}
+            <div class="results-section">
+                <hr class="separator">
+
+                <h2 class="card__title">Resultados del Análisis</h2>
+                <div class="verdict-container">
+                    <div class="verdict-card verdict-analysis">
+                        <h3 class="verdict-card__title">Análisis Numérico</h3>
+                        <p class="analysis__text">Error de Reconstrucción: <br><span class="analysis__value">{{ "%.4f"|format(results.reconstruction_error) }}</span></p>
+                        <p class="analysis__text">Umbral de Decisión (T): <br><span class="analysis__value">{{ "%.4f"|format(results.threshold_t) }}</span></p>
+                        
+                        {% if results.is_recognized %}
+                            <h4 class="verdict verdict--recognized">ROSTRO RECONOCIDO</h4>
+                            <p class="verdict__explanation">El error está por debajo del umbral. El rostro se ajusta al modelo.</p>
+                        {% else %}
+                            <h4 class="verdict verdict--unknown">ROSTRO DESCONOCIDO</h4>
+                            <p class="verdict__explanation">El error supera el umbral. El rostro es diferente a los del entrenamiento.</p>
+                        {% endif %}
+                    </div>
+                    <div class="verdict-card">
+                        <h3 class="verdict-card__title">Muestra del Dataset</h3>
+                        <img src="{{ results.first_dataset_image_path }}" alt="Imagen del Dataset" class="gallery__image--controlled">
+                    </div>
+                    <div class="verdict-card">
+                        <h3 class="verdict-card__title">Imagen de Prueba</h3>
+                        <img src="{{ results.test_image_path }}" alt="Imagen de Prueba Original" class="gallery__image--controlled">
+                    </div>
+                </div>
+
+                <hr class="separator">
+
+                
+                <h2 class="card__title"><strong>Elección de Componentes (k)</strong></h2>
+                <p class="card__text">Se eligieron <strong>{{ results.k }}</strong> componentes para explicar el <strong>{{ "%.2f"|format(results.variance_explained * 100) }}%</strong> de la varianza total.</p>
+                <img src="{{ results.variance_graph_path }}" alt="Gráfico de Varianza Acumulada" class="variance-graph">
+
+                <hr class="separator">
+                
+                <h2 class="card__title">Registro de Procesamiento</h2>
+                <div class="terminal-window">
+                    <div class="terminal-header">
+                        <div class="terminal-button red"></div>
+                        <div class="terminal-button yellow"></div>
+                        <div class="terminal-button green"></div>
+                        <span>bash</span>
+                    </div>
+                    <pre class="console-output">{% for message in logs %}{{ message }}
+{% endfor %}</pre>
+                </div>
+            </div>
+            {% endif %}
         </div>
     </main>
 
     <footer class="footer">
         <p class="footer__text">© 2025 Proyecto de Reconocimiento Facial</p>
     </footer>
+
+    <script>
+        const datasetInput = document.getElementById('datasetInput');
+        const testInput = document.getElementById('testInput');
+        const previewContainerDataset = document.getElementById('previewContainerDataset');
+        const previewContainerTest = document.getElementById('previewContainerTest');
+
+        datasetInput.addEventListener('change', () => {
+            // Limpiar previsualización anterior
+            previewContainerDataset.innerHTML = '';
+
+            const files = datasetInput.files;
+            if (files.length > 0) {
+                // Mostrar contador de imágenes
+                const countText = document.createElement('p');
+                countText.className = 'card__text';
+                countText.textContent = `Se han seleccionado ${files.length} imágenes. Mostrando la primera:`;
+                previewContainerDataset.appendChild(countText);
+
+                // Mostrar preview de la primera imagen
+                const firstFile = files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.classList.add('gallery__image', 'preview__image');
+                    previewContainerDataset.appendChild(img);
+                }
+                reader.readAsDataURL(firstFile);
+            }
+        });
+
+        testInput.addEventListener('change', () => {
+            // Limpiar previsualización anterior
+            previewContainerTest.innerHTML = '';
+            
+            const file = testInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.classList.add('gallery__image', 'preview__image');
+                    previewContainerTest.appendChild(img);
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
 </body>
 </html>
