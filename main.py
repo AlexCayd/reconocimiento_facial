@@ -9,6 +9,8 @@ app = Flask(__name__)
 # Asegurarse de que las carpetas necesarias existan al iniciar la app
 os.makedirs('dataset', exist_ok=True)
 os.makedirs('imagen_prueba', exist_ok=True)
+os.makedirs('static/results',exist_ok=True)
+os.makedirs('static/uploads', exist_ok=True)
 
 
 @app.route("/")
