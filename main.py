@@ -2,7 +2,7 @@ from importlib.metadata import files
 import os
 from PIL import Image
 from flask import Flask, render_template, request, redirect, url_for
-#import reconocimiento-facial.py
+import reconocimiento_facial.py
 
 app = Flask(__name__)
 
